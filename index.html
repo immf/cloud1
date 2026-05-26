@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Copa 2026 — Álbum de Figurinhas</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .sticker-card { transition: transform .12s ease, box-shadow .12s ease; cursor: pointer; user-select: none; }
+    .sticker-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,.13); }
+    .sticker-card:active { transform: scale(.96); }
+    .s-empty  { background:#f8fafc; border-color:#e2e8f0; }
+    .s-have   { background:#dcfce7; border-color:#22c55e; }
+    .s-dup    { background:#fef3c7; border-color:#f59e0b; }
+    .s-spec   { background: linear-gradient(135deg,#fef9c3,#fde68a,#fef9c3); border-color:#ca8a04; }
+    .sidebar-btn.active { background:rgba(255,255,255,.18); font-weight:600; }
+    ::-webkit-scrollbar { width:5px; }
+    ::-webkit-scrollbar-thumb { background:#94a3b8; border-radius:3px; }
+    .team-section { scroll-margin-top:12px; }
+  </style>
+</head>
+<body class="bg-slate-100 min-h-screen">
+<div class="flex h-screen overflow-hidden">
+
+<!-- ═══════════════ SIDEBAR ═══════════════ -->
+<aside class="w-60 bg-gradient-to-b from-blue-950 to-blue-900 text-white flex flex-col overflow-hidden flex-shrink-0">
+
+  <!-- Logo -->
+  <div class="px-4 pt-4 pb-3 border-b border-blue-800">
+    <div class="flex items-center gap-2">
+      <span class="text-2xl">⚽</span>
+      <div>
+        <p class="font-bold text-sm leading-tight">Copa do Mundo 2026</p>
+        <p class="text-blue-400 text-xs">Álbum Panini Oficial</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stats grid -->
+  <div class="p-3 border-b border-blue-800 grid grid-cols-2 gap-1.5">
+    <div class="bg-blue-800/60 rounded-lg p-2 text-center">
+      <div class="text-xl font-bold text-green-400" id="st-have">0</div>
+      <div class="text-xs text-blue-300">Tenho</div>
+    </div>
+    <div class="bg-blue-800/60 rounded-lg p-2 text-center">
+      <div class="text-xl font-bold text-red-400" id="st-miss">980</div>
+      <div class="text-xs text-blue-300">Faltam</div>
+    </div>
+    <div class="bg-blue-800/60 rounded-lg p-2 text-center">
+      <div class="text-xl font-bold text-amber-400" id="st-dup">0</div>
+      <div class="text-xs text-blue-300">Repetidas</div>
+    </div>
+    <div class="bg-blue-800/60 rounded-lg p-2 text-center">
+      <div class="text-xl font-bold text-white" id="st-pct">0%</div>
+      <div class="text-xs text-blue-300">Completo</div>
+    </div>
+  </div>
+
+  <!-- Progress -->
+  <div class="px-3 py-2 border-b border-blue-800">
+    <div class="w-full bg-blue-950 rounded-full h-1.5">
+      <div id="prog" class="bg-green-400 h-1.5 rounded-full transition-all duration-500" style="width:0%"></div>
+    </div>
+  </div>
+
+  <!-- Search -->
+  <div class="px-3 py-2 border-b border-blue-800">
+    <input id="search" type="text" placeholder="🔍 Buscar..." class="w-full bg-blue-800/50 border border-blue-700 text-white placeholder-blue-400 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:bg-blue-800">
+  </div>
+
+  <!-- Status filters -->
+  <div class="px-3 py-2 border-b border-blue-800 space-y-0.5">
+    <p class="text-xs text-blue-500 uppercase tracking-wider font-semibold mb-1">Filtrar</p>
+    <button id="f-all"     onclick="setFilter('all')"     class="sidebar-btn active w-full text-left px-2 py-1.5 rounded-lg text-sm hover:bg-white/10 transition-colors">📋 Todas</button>
+    <button id="f-have"    onclick="setFilter('have')"    class="sidebar-btn w-full text-left px-2 py-1.5 rounded-lg text-sm hover:bg-white/10 transition-colors">✅ Tenho</button>
+    <button id="f-missing" onclick="setFilter('missing')" class="sidebar-btn w-full text-left px-2 py-1.5 rounded-lg text-sm hover:bg-white/10 transition-colors">❌ Faltam</button>
+    <button id="f-dup"     onclick="setFilter('dup')"     class="sidebar-btn w-full text-left px-2 py-1.5 rounded-lg text-sm hover:bg-white/10 transition-colors">🔄 Repetidas</button>
+  </div>
+
+  <!-- Team list -->
+  <div class="flex-1 overflow-y-auto px-3 py-2" id="team-list"></div>
+
+  <!-- Export -->
+  <div class="p-3 border-t border-blue-800">
+    <button onclick="exportMissing()" class="w-full bg-blue-700 hover:bg-blue-600 text-sm py-2 rounded-lg transition-colors">📤 Exportar faltam</button>
+    <button onclick="resetAll()" class="w-full mt-1 text-xs text-red-400 hover:text-red-300 py-1">Resetar tudo</button>
+  </div>
+</aside>
+
+<!-- ═══════════════ MAIN ═══════════════ -->
+<main class="flex-1 overflow-y-auto">
+  <!-- Top bar -->
+  <div class="bg-white border-b border-slate-200 px-5 py-2.5 flex items-center gap-4 sticky top-0 z-10 shadow-sm">
+    <div class="flex gap-4 text-xs text-slate-600">
+      <span><span class="inline-block w-2.5 h-2.5 rounded bg-slate-300 mr-1"></span><b id="h-total">980</b> total</span>
+      <span><span class="inline-block w-2.5 h-2.5 rounded bg-green-400 mr-1"></span><b id="h-have">0</b> tenho</span>
+      <span><span class="inline-block w-2.5 h-2.5 rounded bg-red-400 mr-1"></span><b id="h-miss">980</b> faltam</span>
+      <span><span class="inline-block w-2.5 h-2.5 rounded bg-amber-400 mr-1"></span><b id="h-dup">0</b> repetidas</span>
+    </div>
+    <div class="ml-auto text-xs text-slate-400 italic">Clique 1×: Tenho · 2×: Repetida · 3×: Apagar</div>
+  </div>
+
+  <div class="p-5" id="container"></div>
+</main>
+</div>
+
+<script>
+// ─── DATA ───────────────────────────────────────────────────────────────────
+
+const SPECIALS = [
+  {n:1,  name:'Logotipo Oficial',      desc:'FIFA Copa do Mundo 2026™'},
+  {n:2,  name:'Troféu FIFA',           desc:'Troféu da Copa do Mundo'},
+  {n:3,  name:'Mascote Oficial',       desc:'Mascote da Copa 2026'},
+  {n:4,  name:'MetLife Stadium',       desc:'Nova York/Nova Jersey – EUA'},
+  {n:5,  name:'Rose Bowl',             desc:'Los Angeles – EUA'},
+  {n:6,  name:'AT&T Stadium',          desc:'Dallas – EUA'},
+  {n:7,  name:'Levi\'s Stadium',       desc:'San Francisco – EUA'},
+  {n:8,  name:'Arrowhead Stadium',     desc:'Kansas City – EUA'},
+  {n:9,  name:'Lincoln Financial',     desc:'Filadélfia – EUA'},
+  {n:10, name:'Azteca',                desc:'Cidade do México – México'},
+  {n:11, name:'Estadio BBVA',          desc:'Monterrey – México'},
+  {n:12, name:'Estadio Akron',         desc:'Guadalajara – México'},
+  {n:13, name:'BC Place',              desc:'Vancouver – Canadá'},
+  {n:14, name:'BMO Field',             desc:'Toronto – Canadá'},
+  {n:15, name:'Stade Olympique',       desc:'Montreal – Canadá'},
+  {n:16, name:'Formato da Copa',       desc:'48 seleções – 3 países sede'},
+  {n:17, name:'Bola Oficial',          desc:'Adidas Official Match Ball'},
+  {n:18, name:'Artilheiros Históricos',desc:'Maiores artilheiros da Copa'},
+  {n:19, name:'Recordes & Estatísticas',desc:'Dados históricos da Copa'},
+  {n:20, name:'Bola de Ouro',          desc:'Melhor jogador do torneio'},
+];
+
+const TEAMS = [
+  // ── CONMEBOL ──────────────────────────────────────────────────
+  {id:'arg',flag:'🇦🇷',name:'Argentina',      conf:'CONMEBOL',
+   players:['Dibu Martínez','Molina','Cuti Romero','L. Martínez','Tagliafico','Otamendi','De Paul','Mac Allister','E. Fernández','Almada','Lo Celso','Acuña','Di María','Dybala','J. Álvarez','Lautaro','Messi','Paredes']},
+  {id:'bra',flag:'🇧🇷',name:'Brasil',          conf:'CONMEBOL',
+   players:['Alisson','Danilo','Militão','Marquinhos','G. Arana','G. Magalhães','Casemiro','Bruno Guimarães','Paquetá','Rodrygo','Raphinha','Vinicius Jr','Endrick','Martinelli','Pedro','Savinho','Estevão','Gerson']},
+  {id:'uru',flag:'🇺🇾',name:'Uruguai',         conf:'CONMEBOL',
+   players:['Rochet','Nández','Araújo','Giménez','Olivera','Maxi Araújo','Ugarte','Valverde','Bentancur','De Arrascaeta','Pellistri','Núñez','Cáceres','Viña','Barrios','Sosa','Gómez','Piquerez']},
+  {id:'col',flag:'🇨🇴',name:'Colômbia',        conf:'CONMEBOL',
+   players:['Vargas','Muñoz','Lucumí','Sánchez','Mojica','Arias','Lerma','Castaño','James Rodríguez','Cuadrado','L. Díaz','Sinisterra','Borré','Córdoba','Cuesta','Mina','Ospina','D. Vásquez']},
+  {id:'ecu',flag:'🇪🇨',name:'Equador',         conf:'CONMEBOL',
+   players:['Galíndez','Preciado','Hincapié','Torres','Reasco','Arboleda','Caicedo','Plata','Ibarra','Estrada','E. Valencia','Mena','Angulo','Sornoza','Meza','Franco','Intriago','Corozo']},
+  {id:'ven',flag:'🇻🇪',name:'Venezuela',       conf:'CONMEBOL',
+   players:['Romo','Mago','Osorio','Navarro','Ferraresi','Cichero','Casseres','Herrera','Savarino','Machís','Soteldo','Rondón','Murillo','Peñaranda','Martínez','Bello','Segovia','Velásquez']},
+
+  // ── CONCACAF ─────────────────────────────────────────────────
+  {id:'usa',flag:'🇺🇸',name:'Estados Unidos',  conf:'CONCACAF',
+   players:['Turner','Horvath','Dest','Richards','Zimmerman','Robinson','Tyler Adams','McKennie','Musah','Acosta','Aaronson','Pulisic','Reyna','Weah','Sargent','Tillman','Carter-Vickers','Ferreira']},
+  {id:'mex',flag:'🇲🇽',name:'México',          conf:'CONCACAF',
+   players:['Ochoa','Talavera','Sánchez','Montes','Moreno','Arteaga','Gallardo','Rivas','Herrera','Gutiérrez','Alvarado','Antuna','Lozano','Jiménez','Lainez','Flores','Martín','Orrantia']},
+  {id:'can',flag:'🇨🇦',name:'Canadá',          conf:'CONCACAF',
+   players:['Borjan','Johnston','Miller','Vitoria','Laryea','Adekugbe','Hutchinson','Eustáquio','Kaye','Piette','A. Davies','Buchanan','Osorio','D. David','Hoilett','Ahmed','Henry','Cornelius']},
+  {id:'jam',flag:'🇯🇲',name:'Jamaica',         conf:'CONCACAF',
+   players:['Blake','Pinnock','Lawrence','Lowe','Bell','Greenidge','Morrison','Shabazz','L. Bailey','Nicholson','Thomas','Anderson','Reid','Williams','Holness','Burke','Moulton','Allen']},
+  {id:'pan',flag:'🇵🇦',name:'Panamá',          conf:'CONCACAF',
+   players:['Penedo','Murillo','Davis','Escobar','Córdoba','Arroyo','Godoy','Cox','Quintero','Carrasquilla','Fajardo','Torres','Bárcenas','Anderson','Baloy','Brown','Tejada','Thomas']},
+  {id:'hon',flag:'🇭🇳',name:'Honduras',        conf:'CONCACAF',
+   players:['Gutiérrez','Beckeles','Figueroa','Álvarez','Caballero','Peña','Chávez','Cartagena','Bonilla','Arriaga','Bengtson','Quioto','Elis','Lozano','Pereira','López','Costly','Meléndez']},
+
+  // ── UEFA ─────────────────────────────────────────────────────
+  {id:'esp',flag:'🇪🇸',name:'Espanha',         conf:'UEFA',
+   players:['Unai Simón','Carvajal','Laporte','Le Normand','Cucurella','Grimaldo','Rodri','Pedri','Gavi','Fabián Ruiz','Yamal','F. Torres','Olmo','Oyarzabal','Morata','Williams','Navas','Ramos']},
+  {id:'eng',flag:'🏴󠁧󠁢󠁥󠁮󠁧󠁿',name:'Inglaterra',      conf:'UEFA',
+   players:['Pickford','Ramsdale','Walker','Alexander-Arnold','Stones','Maguire','Shaw','Trippier','Rice','Bellingham','Mount','Henderson','Saka','Foden','Grealish','Rashford','Kane','Toney']},
+  {id:'ger',flag:'🇩🇪',name:'Alemanha',        conf:'UEFA',
+   players:['Neuer','ter Stegen','Kimmich','Rüdiger','Schlotterbeck','Tah','Raum','Goretzka','Kroos','Brandt','Musiala','Wirtz','Gnabry','Sané','Havertz','Füllkrug','Müller','Hofmann']},
+  {id:'fra',flag:'🇫🇷',name:'França',          conf:'UEFA',
+   players:['Maignan','Lloris','Pavard','Varane','Upamecano','Konaté','Saliba','L. Hernández','Tchouaméni','Rabiot','Camavinga','Zaire-Emery','Dembélé','Griezmann','Olise','Coman','Thuram','Mbappé']},
+  {id:'por',flag:'🇵🇹',name:'Portugal',        conf:'UEFA',
+   players:['Diogo Costa','R. Patrício','Cancelo','Rúben Dias','Pepe','Danilo','Nuno Mendes','Guerreiro','Palhinha','W. Carvalho','Vitinha','B. Fernandes','Bernardo Silva','Otávio','Horta','Leão','João Félix','C. Ronaldo']},
+  {id:'ned',flag:'🇳🇱',name:'Holanda',         conf:'UEFA',
+   players:['Flekken','Cillessen','Dumfries','Frimpong','De Vrij','Van Dijk','Aké','Blind','Timber','F. de Jong','Koopmeiners','Reijnders','Veerman','Simons','Gakpo','Depay','Lang','Brobbey']},
+  {id:'bel',flag:'🇧🇪',name:'Bélgica',         conf:'UEFA',
+   players:['Courtois','Mignolet','Castagne','Meunier','Boyata','Vertonghen','Alderweireld','Carrasco','Witsel','Tielemans','De Bruyne','Onana','De Ketelaere','Doku','Openda','Lukaku','Batshuayi','Bakayoko']},
+  {id:'cro',flag:'🇭🇷',name:'Croácia',         conf:'UEFA',
+   players:['Livaković','Ćaleta-Car','Šimić','Lovren','Gvardiol','Sosa','Brozović','Modrić','Kovačić','Pašalić','Majer','Brekalo','Vlašić','Perišić','Sutalo','Ivanušec','Kramarić','Budimir']},
+  {id:'sui',flag:'🇨🇭',name:'Suíça',           conf:'UEFA',
+   players:['Kobel','Sommer','Widmer','Akanji','Schär','Elvedi','R. Rodriguez','Zakaria','Freuler','G. Xhaka','Vargas','Steffen','Okafor','Shaqiri','Ndoye','Amdouni','Embolo','Seferović']},
+  {id:'aut',flag:'🇦🇹',name:'Áustria',         conf:'UEFA',
+   players:['Pentz','Lindner','Trauner','Posch','Wöber','Alaba','Trimmel','Laimer','Sabitzer','Schlager','Prass','Ranftl','Kainz','Baumgartner','Grüll','Sucic','Arnautovic','Gregoritsch']},
+  {id:'tur',flag:'🇹🇷',name:'Turquia',         conf:'UEFA',
+   players:['Günok','Çakır','Z. Çelik','Söyüncü','Demiral','Müldür','Erkin','Çalhanoğlu','Tufan','Özcan','Arda Güler','K. Yıldız','Aktürkoğlu','Yazıcı','Karaman','Tosun','Yılmaz','Unal']},
+  {id:'sco',flag:'🏴󠁧󠁢󠁳󠁣󠁴󠁿',name:'Escócia',         conf:'UEFA',
+   players:['Gordon','Kelly','O\'Donnell','McKenna','Hanley','Cooper','Robertson','Tierney','McTominay','McGinn','Gilmour','Christie','Armstrong','Patterson','Porteous','Nisbet','Adams','Dykes']},
+  {id:'geo',flag:'🇬🇪',name:'Geórgia',         conf:'UEFA',
+   players:['Mamardashvili','Loria','Kakabadze','Kashia','Dvali','Lochoshvili','Gocholeishvili','Tabidze','Kiteishvili','Chakvetadze','Kochorashvili','Altunashvili','Tsitaishvili','Lobjanidze','Davitashvili','Zivzivadze','Mikautadze','Kvaratskhelia']},
+  {id:'svk',flag:'🇸🇰',name:'Eslováquia',      conf:'UEFA',
+   players:['Dúbravka','Rodák','Šatka','Škriniar','Vavro','Hancko','Obert','Lobotka','Kucka','Bero','Weiss','Rusnák','Duda','Suslov','Chromiak','Strelec','Boženík','Almási']},
+  {id:'svn',flag:'🇸🇮',name:'Eslovênia',       conf:'UEFA',
+   players:['Oblak','Vidovšek','Stojanović','Blažič','Bijol','Drkušić','Karničnik','Cerin','Elsnik','Kurtic','Lovric','Verbič','Mlakar','Ilić','Popović','Marin','Sporar','Šeško']},
+  {id:'alb',flag:'🇦🇱',name:'Albânia',         conf:'UEFA',
+   players:['Strakosha','Berisha','Hysaj','Kumbulla','Djimsiti','Mitaj','Trashi','Bare','Ramadani','Gjasula','Laçi','Asllani','Bajrami','Muçi','Lenjani','Seferi','Broja','Cikalleshi']},
+
+  // ── CAF ──────────────────────────────────────────────────────
+  {id:'mar',flag:'🇲🇦',name:'Marrocos',        conf:'CAF',
+   players:['Bounou','Tagnaouti','Hakimi','Saiss','Dari','Mazraoui','Benoun','El Yamiq','Attiyat Allah','Amrabat','Ounahi','Sabiri','Ziyech','Boufal','Ez Abde','Abde','Aboukhlal','En-Nesyri']},
+  {id:'sen',flag:'🇸🇳',name:'Senegal',         conf:'CAF',
+   players:['Mendy','Gomis','Sabaly','Koulibaly','Niakhate','S. Mendy','Diatta','Gueye','Camara','Ciss','Sarr','Ndiaye','Balde','Diedhiou','Diallo','Diatta','Badji','Mané']},
+  {id:'egy',flag:'🇪🇬',name:'Egito',           conf:'CAF',
+   players:['El-Shenawy','Gabaski','A. Tawfik','H. Fathi','Hegazi','O. Kamal','A. Fatouh','Elneny','H. Ibrahim','Taher','Emam Ashour','M. Hamdy','El Shhat','M. Mohsen','R. Sobhi','Shobeir','Zizo','Salah']},
+  {id:'nga',flag:'🇳🇬',name:'Nigéria',         conf:'CAF',
+   players:['Okoye','Uzoho','Aina','Ekong','Collins','Sanusi','Awaziem','Ndidi','Iwobi','Aribo','Chukwueze','Simon','Lookman','Iheanacho','Onuachu','Musa','Obi','Osimhen']},
+  {id:'rsa',flag:'🇿🇦',name:'África do Sul',   conf:'CAF',
+   players:['Williams','Mothwa','Matlaba','Mokoena','Notoane','Lakay','Maart','Mosele','Tau','Zwane','Dolly','Foster','Nange','Mnyamane','Modise','Vilakazi','Kekana','Letsholonyane']},
+  {id:'cod',flag:'🇨🇩',name:'R. D. Congo',     conf:'CAF',
+   players:['Mpasi','Cafu','Kakuta','Mbemba','Luyindama','Tisserand','Bokadi','Ndinga','Mpoku','Silas','Bolasie','Muleka','Botaka','Mputu','Nsimba','Mbokani','Pota','Wissa']},
+  {id:'tun',flag:'🇹🇳',name:'Tunísia',         conf:'CAF',
+   players:['Ben Said','Mathlouthi','Dräger','Kechrida','Bronn','Meriah','Ifa','Talbi','Sassi','Laidouni','Ben Amor','Chaalali','Abdi','Sliti','Jaziri','Badri','Msakni','Khazri']},
+  {id:'alg',flag:'🇩🇿',name:'Argélia',         conf:'CAF',
+   players:['Mbolhi','Benayada','Atal','Mandi','Benlamri','Chenihat','Bensebaini','Zerrouki','Bennacer','Guedioura','Boudaoui','Feghouli','Kheddira','Mahrez','Amoura','Slimani','Meziane','Belghazi']},
+  {id:'gui',flag:'🇬🇳',name:'Guiné',           conf:'CAF',
+   players:['Keïta Baldé','Diallo','Ilaix Camara','Sylla','Kouyaté','Bah','Traoré','Touré','Diawara','Soumah','Bangoura','Cissé','Haba','Moriba','Naby Keita','Kourouma','S. Camara','Guilavogui']},
+
+  // ── AFC ──────────────────────────────────────────────────────
+  {id:'jpn',flag:'🇯🇵',name:'Japão',           conf:'AFC',
+   players:['Gonda','Schmidt','Tomiyasu','Itakura','Yoshida','Taniguchi','Nagatomo','Ito','Doan','Endo','Tanaka','Kamada','Mitoma','Maeda','Ueda','Asano','Furuhashi','Hatate']},
+  {id:'kor',flag:'🇰🇷',name:'Coreia do Sul',   conf:'AFC',
+   players:['Kim Seung-gyu','Jo Hyeon-woo','K. Moon-hwan','Kim Min-jae','J. Woo-young','Kim Jin-su','Kwon K.-won','Lee Jae-sung','Hwang In-beom','Jeong W.-yeong','Lee Gang-in','Bae Junho','Hong H.-seok','Na Sang-ho','Cho Gue-sung','Oh H.-gyu','Hwang Ui-jo','Son Heung-min']},
+  {id:'aus',flag:'🇦🇺',name:'Austrália',        conf:'AFC',
+   players:['Ryan','Redmayne','Rowles','Degenek','Souttar','Atkinson','Stanton','Mooy','Irvine','McGree','Arnolds','Genreau','Baccus','Leckie','Goodwin','Mabil','Duke','Maclaren']},
+  {id:'irn',flag:'🇮🇷',name:'Irã',             conf:'AFC',
+   players:['Beiranvand','Sarlak','Moharrami','Hosseini','Pouraliganji','Hajsafi','Rezaeian','Noorollahi','Ezatollahi','Shojaei','Cheshmi','Torabi','Karimi','Gholizadeh','Jahanbakhsh','Azmoun','Taremi','Ansarifard']},
+  {id:'ksa',flag:'🇸🇦',name:'Arábia Saudita',  conf:'AFC',
+   players:['Al-Owais','Al-Rubaie','Al-Shahrani','Al-Bulaihi','Al-Tambakti','Al-Burayk','Al-Khaibari','Kanno','Al-Malki','Al-Faraj','Aljabir','Al-Dawsari','Al-Shehri','Al-Bello','Bahebri','Al-Ghannam','Al-Hamdan','Al-Qasem']},
+  {id:'irq',flag:'🇮🇶',name:'Iraque',          conf:'AFC',
+   players:['Basim Abbas','Al-Habboubi','Ali Adnan','Saad Natiq','Hussein Ali','Humam Tariq','Abbas Ali','Ahmad Yasin','Ahmed Ibrahim','Mohanad Ali','Bashar Rasan','Yousif Amir','Safaa Hadi','Hammadi Ahmed','Ali Hisham','Ameen Mohammed','Aymen Hussein','Karar Jassim']},
+  {id:'jor',flag:'🇯🇴',name:'Jordânia',        conf:'AFC',
+   players:['Yahia Shaafi','Shafi','Baha Faisal','Moneer Abu Amara','M. Ababneh','A. Bani-Yaseen','Khaled Al-Oud','Anas Shtaiwi','Zaid Hamdan','H. Abdel-Fattah','Abdallah Deeb','M. Rasheed','M. Al-Daradkah','Ahmad Al-Sarih','Saleh Al-Bakkar','Oday Dabbagh','Yazan Al-Naimat','Musa Al-Tamari']},
+  {id:'uzb',flag:'🇺🇿',name:'Uzbequistão',     conf:'AFC',
+   players:['Jaloliddinov','Nishonov','D. Khamdamov','A. Ismailov','J. Iskanderov','O. Shukurov','B. Sobirov','H. Zainutdinov','J. Yakhshiboev','O. Turgunboev','J. Sidikov','B. Abdixoliqov','A. Jurayev','S. Tursunov','I. Tursunov','D. Hakimov','A. Fayzullaev','E. Shomurodov']},
+  {id:'qat',flag:'🇶🇦',name:'Catar',           conf:'AFC',
+   players:['Al-Sheeb','Meshaal','Pedro Miguel','Salman','Al-Rawi','Al-Haydos','Boudiaf','Assim Madibo','Ahmad','Al-Naemi','Afif','Alaaeldin','Al-Ghanim','Salem Al-Hajri','Ismail Mohammed','Homam Ahmed','Muntari','Almoez Ali']},
+
+  // ── OFC ──────────────────────────────────────────────────────
+  {id:'nzl',flag:'🇳🇿',name:'Nova Zelândia',   conf:'OFC',
+   players:['Goldes','Woud','Rawlinson','Payne','James','Bell','Cacace','Old','Thomas','McGlinchey','Sutton','Garbett','Sail','Smith','Jones','O\'Neill','Pineda','Wood']},
+
+  // ── Interconf ────────────────────────────────────────────────
+  {id:'cur',flag:'🇨🇼',name:'Curaçao',         conf:'CONCACAF',
+   players:['Tweede','Hoop','Sulvaran','Martina','Sandringham','Wilnis','Burnet','Bacuna','Chavrigo','Crijnsen','Cecilia','Bonevacia','Fer','Van den Berg','Vito','Kwidama','Quasten','Flemming']},
+  {id:'cpv',flag:'🇨🇻',name:'Cabo Verde',      conf:'CAF',
+   players:['Vozinha','Mendes','Roberto','Stopira','Rober Leal','Lisandro','Rony Lopes','Garry Rodrigues','Ryan Mendes','Sandro','Djaniny','Jamiro','Saviour','Leandro Silva','Mayron','Patrick Andrade','Nanu','Jovane']},
+];
+
+// ─── GENERATE STICKERS ──────────────────────────────────────────────────────
+
+const stickers = [];
+
+SPECIALS.forEach(s => {
+  stickers.push({ id:`spec_${s.n}`, num:s.n, type:'special', name:s.name, desc:s.desc, team:null, teamId:'__special__', conf:'Especial', flag:'⭐' });
+});
+
+let num = SPECIALS.length + 1;
+
+TEAMS.forEach(t => {
+  stickers.push({ id:`${t.id}_badge`, num:num++, type:'badge',  name:t.name,   desc:'Escudo Oficial',           team:t.name, teamId:t.id, conf:t.conf, flag:t.flag });
+  stickers.push({ id:`${t.id}_foto`,  num:num++, type:'photo',  name:t.name,   desc:'Foto Oficial da Seleção',  team:t.name, teamId:t.id, conf:t.conf, flag:t.flag });
+  t.players.forEach((p, i) => {
+    stickers.push({ id:`${t.id}_p${i}`, num:num++, type:'player', name:p, desc:t.name, team:t.name, teamId:t.id, conf:t.conf, flag:t.flag });
+  });
+});
+
+// ─── STATE ──────────────────────────────────────────────────────────────────
+
+let states = {};
+const TOTAL = stickers.length;
+
+function load()  { try { states = JSON.parse(localStorage.getItem('wc26')||'{}'); } catch(e){states={};} }
+function save()  { localStorage.setItem('wc26', JSON.stringify(states)); }
+function st(id)  { return states[id]||0; }
+function toggle(id) { states[id] = (st(id)+1)%3; save(); updateStats(); refreshCard(id); refreshTeamList(); }
+
+// ─── RENDER ─────────────────────────────────────────────────────────────────
+
+let filterStatus = 'all';
+let filterTeam   = null;
+let searchQ      = '';
+
+function cardClass(s) {
+  const v = st(s.id);
+  if (v===1) return 'sticker-card border-2 rounded-xl p-1.5 text-center s-have';
+  if (v===2) return 'sticker-card border-2 rounded-xl p-1.5 text-center s-dup';
+  if (s.type==='special') return 'sticker-card border-2 rounded-xl p-1.5 text-center s-spec';
+  return 'sticker-card border-2 rounded-xl p-1.5 text-center s-empty';
+}
+
+function cardIcon(s) {
+  if (s.type==='special') return '⭐';
+  if (s.type==='badge')   return '🛡️';
+  if (s.type==='photo')   return '📸';
+  return s.flag;
+}
+
+function cardHTML(s) {
+  const v = st(s.id);
+  const badge = v===1 ? '<span class="text-green-600 text-xs leading-none">✅</span>'
+              : v===2 ? '<span class="text-amber-500 text-xs font-bold leading-none">×2</span>'
+              : '<span class="text-xs leading-none">&nbsp;</span>';
+  const label = s.name.length>13 ? s.name.slice(0,12)+'…' : s.name;
+  return `<div id="sc-${s.id}" class="${cardClass(s)}" onclick="toggle('${s.id}')" title="#${s.num} ${s.name}${s.desc?' — '+s.desc:''}">
+    <div class="text-gray-400 font-mono leading-none mb-0.5" style="font-size:9px">#${s.num}</div>
+    <div class="text-lg leading-none mb-0.5">${cardIcon(s)}</div>
+    <div class="text-slate-700 leading-tight truncate" style="font-size:9px">${label}</div>
+    <div class="mt-0.5">${badge}</div>
+  </div>`;
+}
+
+function filteredStickers() {
+  return stickers.filter(s => {
+    const v = st(s.id);
+    if (filterStatus==='have'    && v!==1) return false;
+    if (filterStatus==='missing' && v!==0) return false;
+    if (filterStatus==='dup'     && v!==2) return false;
+    if (filterTeam && filterTeam!=='__special__' && s.teamId!==filterTeam) return false;
+    if (filterTeam==='__special__' && s.teamId!=='__special__') return false;
+    if (searchQ) {
+      const q = searchQ.toLowerCase();
+      if (!s.name.toLowerCase().includes(q) && !String(s.num).includes(q) && !(s.desc||'').toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+const CONF_ORDER  = ['CONMEBOL','CONCACAF','UEFA','CAF','AFC','OFC'];
+const CONF_LABELS = { CONMEBOL:'🌎 CONMEBOL — América do Sul', CONCACAF:'🌎 CONCACAF — América Central e do Norte', UEFA:'🌍 UEFA — Europa', CAF:'🌍 CAF — África', AFC:'🌏 AFC — Ásia', OFC:'🌏 OFC — Oceania' };
+
+function renderAll() {
+  const pool = filteredStickers();
+  const container = document.getElementById('container');
+  if (!pool.length) {
+    container.innerHTML = `<div class="text-center py-24 text-slate-400"><div class="text-5xl mb-3">🔍</div><p class="text-lg font-medium">Nenhuma figurinha encontrada</p><p class="text-sm">Ajuste os filtros ou busca</p></div>`;
+    return;
+  }
+
+  // group by teamId
+  const byTeam = {};
+  pool.forEach(s => { (byTeam[s.teamId]||(byTeam[s.teamId]=[])).push(s); });
+
+  let html = '';
+
+  if (byTeam['__special__']) html += sectionHTML('⭐ Figurinhas Especiais','__special__', byTeam['__special__']);
+
+  const teamByConf = {};
+  TEAMS.forEach(t => { (teamByConf[t.conf]||(teamByConf[t.conf]=[])).push(t); });
+
+  CONF_ORDER.forEach(conf => {
+    if (!teamByConf[conf]) return;
+    const teamsInConf = teamByConf[conf].filter(t => byTeam[t.id]);
+    if (!teamsInConf.length) return;
+    html += `<div class="mb-1 mt-6 text-xs uppercase tracking-widest text-slate-400 font-bold border-b border-slate-200 pb-1">${CONF_LABELS[conf]}</div>`;
+    teamsInConf.forEach(t => { html += sectionHTML(`${t.flag} ${t.name}`, t.id, byTeam[t.id]); });
+  });
+
+  container.innerHTML = html;
+}
+
+function sectionHTML(title, groupId, items) {
+  const have = items.filter(s=>st(s.id)>=1).length;
+  const total = items.length;
+  const pct = total ? Math.round(have/total*100) : 0;
+  return `<div class="team-section mb-5" id="sec-${groupId}">
+    <div class="flex items-center justify-between mb-1.5 px-0.5">
+      <span class="font-semibold text-slate-700 text-sm">${title}</span>
+      <span class="text-xs text-slate-500">${have}/${total} · ${pct}%</span>
+    </div>
+    <div class="grid gap-1.5" style="grid-template-columns:repeat(auto-fill,minmax(68px,1fr))">
+      ${items.map(cardHTML).join('')}
+    </div>
+  </div>`;
+}
+
+function refreshCard(id) {
+  const el = document.getElementById(`sc-${id}`);
+  if (!el) return;
+  const s = stickers.find(x=>x.id===id);
+  if (!s) return;
+  el.className = cardClass(s);
+  const v = st(id);
+  const badge = v===1 ? '<span class="text-green-600 text-xs leading-none">✅</span>'
+              : v===2 ? '<span class="text-amber-500 text-xs font-bold leading-none">×2</span>'
+              : '<span class="text-xs leading-none">&nbsp;</span>';
+  el.querySelector('div:last-child').innerHTML = badge.replace(/^<span/,'<span');
+  el.querySelector('div:last-child').outerHTML = `<div class="mt-0.5">${badge}</div>`;
+  // easier: just re-render card
+  el.outerHTML = cardHTML(s);
+  document.getElementById(`sc-${id}`)?.addEventListener('click', ()=>toggle(id));
+}
+
+// ─── STATS ───────────────────────────────────────────────────────────────────
+
+function updateStats() {
+  const have = stickers.filter(s=>st(s.id)===1).length;
+  const dup  = stickers.filter(s=>st(s.id)===2).length;
+  const miss = stickers.filter(s=>st(s.id)===0).length;
+  const pct  = Math.round((have+dup)/TOTAL*100);
+
+  document.getElementById('st-have').textContent = have;
+  document.getElementById('st-miss').textContent = miss;
+  document.getElementById('st-dup').textContent  = dup;
+  document.getElementById('st-pct').textContent  = pct+'%';
+  document.getElementById('prog').style.width    = pct+'%';
+
+  document.getElementById('h-total').textContent = TOTAL;
+  document.getElementById('h-have').textContent  = have;
+  document.getElementById('h-miss').textContent  = miss;
+  document.getElementById('h-dup').textContent   = dup;
+}
+
+// ─── TEAM LIST (SIDEBAR) ─────────────────────────────────────────────────────
+
+function refreshTeamList() {
+  const teamByConf = {};
+  TEAMS.forEach(t => { (teamByConf[t.conf]||(teamByConf[t.conf]=[])).push(t); });
+
+  const specStickers = stickers.filter(s=>s.type==='special');
+  const specHave = specStickers.filter(s=>st(s.id)>=1).length;
+  const specPct  = Math.round(specHave/specStickers.length*100);
+
+  let html = `
+    <button onclick="selectTeam(null)" class="sidebar-btn ${!filterTeam?'active':''} w-full text-left px-2 py-1 rounded text-xs hover:bg-white/10 transition-colors mb-0.5">📋 Todas as seleções</button>
+    <button onclick="selectTeam('__special__')" class="sidebar-btn ${filterTeam==='__special__'?'active':''} w-full text-left px-2 py-1 rounded text-xs hover:bg-white/10 transition-colors flex justify-between mb-1">
+      <span>⭐ Especiais</span><span class="text-blue-400">${specPct}%</span>
+    </button>`;
+
+  CONF_ORDER.forEach(conf => {
+    if (!teamByConf[conf]) return;
+    html += `<p class="text-blue-500 text-xs uppercase tracking-wider font-semibold px-1 mt-2 mb-0.5">${conf}</p>`;
+    teamByConf[conf].forEach(t => {
+      const ts = stickers.filter(s=>s.teamId===t.id);
+      const pct = ts.length ? Math.round(ts.filter(s=>st(s.id)>=1).length/ts.length*100) : 0;
+      html += `<button onclick="selectTeam('${t.id}')" class="sidebar-btn ${filterTeam===t.id?'active':''} w-full text-left px-2 py-1 rounded text-xs hover:bg-white/10 transition-colors flex items-center justify-between">
+        <span class="flex items-center gap-1 truncate">${t.flag} <span class="truncate">${t.name}</span></span>
+        <span class="text-blue-400 flex-shrink-0 ml-1">${pct}%</span>
+      </button>`;
+    });
+  });
+
+  document.getElementById('team-list').innerHTML = html;
+}
+
+// ─── FILTERS ─────────────────────────────────────────────────────────────────
+
+function setFilter(f) {
+  filterStatus = f;
+  ['all','have','missing','dup'].forEach(x => document.getElementById(`f-${x}`)?.classList.remove('active'));
+  document.getElementById(`f-${f}`)?.classList.add('active');
+  renderAll();
+}
+
+function selectTeam(id) {
+  filterTeam = id;
+  refreshTeamList();
+  renderAll();
+  if (id) {
+    requestAnimationFrame(() => {
+      document.getElementById(`sec-${id}`)?.scrollIntoView({ behavior:'smooth', block:'start' });
+    });
+  }
+}
+
+// ─── EXPORT ──────────────────────────────────────────────────────────────────
+
+function exportMissing() {
+  const miss = stickers.filter(s=>st(s.id)===0);
+  if (!miss.length) { alert('🎉 Parabéns! Você completou o álbum!'); return; }
+  const byTeam = {};
+  miss.forEach(s => { const k = s.type==='special'?'Especiais':s.team; (byTeam[k]||(byTeam[k]=[])).push(s); });
+  let txt = `FIGURINHAS QUE FALTAM — Copa do Mundo 2026\nGerado em ${new Date().toLocaleDateString('pt-BR')}\nTotal faltando: ${miss.length} de ${TOTAL}\n\n`;
+  Object.entries(byTeam).forEach(([team, items]) => {
+    txt += `── ${team} ──\n${items.map(s=>`  #${s.num} ${s.name}`).join('\n')}\n\n`;
+  });
+  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([txt],{type:'text/plain;charset=utf-8'})), download:'faltam-copa2026.txt' });
+  a.click();
+}
+
+function resetAll() {
+  if (!confirm('Resetar TODAS as figurinhas? Isso não pode ser desfeito.')) return;
+  states = {}; save(); updateStats(); renderAll(); refreshTeamList();
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+
+document.getElementById('search').addEventListener('input', e => { searchQ = e.target.value; renderAll(); });
+
+load();
+updateStats();
+refreshTeamList();
+renderAll();
+</script>
+</body>
+</html>
