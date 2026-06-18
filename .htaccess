@@ -1,0 +1,25 @@
+Options -Indexes
+DirectoryIndex index.php
+
+<IfModule mod_mime.c>
+  AddType audio/mpeg .mp3
+  AddType audio/mp4 .m4a
+  AddType image/jpeg .jpg .jpeg
+  AddType image/png .png
+  AddType image/webp .webp
+</IfModule>
+
+<IfModule mod_headers.c>
+  <FilesMatch "\.(mp3|m4a)$">
+    Header set Accept-Ranges bytes
+    Header set Cache-Control "public, max-age=86400"
+  </FilesMatch>
+  <FilesMatch "\.(jpg|jpeg|png|gif|webp)$">
+    Header set Cache-Control "public, max-age=604800"
+  </FilesMatch>
+</IfModule>
+
+<FilesMatch "^\.">
+  Order allow,deny
+  Deny from all
+</FilesMatch>
